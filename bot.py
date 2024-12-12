@@ -1,12 +1,14 @@
+import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext
+from dotenv import load_dotenv 
+
+load_dotenv()
+API_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 
-API_TOKEN = "7712239658:AAHex1fmbzRkqslEAnNrkmgxEbtKE5wG6TE"
-
-# Define the /start command handler
 async def start(update: Update, context: CallbackContext) -> None:
-    await update.message.reply_text("Hello! I am NotifyBuddy. How can I assist you today??")
+    await update.message.reply_text("Hello! I am NotifyBuddy. How can I assist you today, tomorrow?")
 
 
 # Main function to run the bot
