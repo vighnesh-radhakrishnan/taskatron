@@ -1,6 +1,6 @@
 # NotifyBuddyBot
 
-Be your own assistant with **NotifyBuddyBot** — a simple and interactive Telegram bot for setting reminders, managing to-do lists, and scheduling sessions with ease.
+Be your own assistant with **NotifyBuddyBot** — a simple and interactive Telegram bot for setting reminders and scheduling sessions with ease.
 
 ## Features
 
