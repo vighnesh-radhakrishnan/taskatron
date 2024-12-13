@@ -48,6 +48,11 @@ async def manage_task(update: Update, context: CallbackContext) -> None:
                 await update.message.reply_text(f"Task '{expired_task}' expired.")
                 print(f"Task '{expired_task}' expired.")
             return
+        else:
+            await update.message.reply_text(
+                "No active task. Use /taskatron <task_name> <task_time> <unit (sec/mins/hr)> to start a new task."
+            )
+            return
 
     # Handle task clear
     if len(context.args) == 1 and context.args[0].lower() == "clear":
@@ -117,6 +122,21 @@ async def task_timer(task_name: str, task_time: int, update: Update):
         current_session["end_time"] = None
         await update.message.reply_text(f"Task '{task_name}' has expired.")
 
+async def show_help(update: Update, context: CallbackContext) -> None:
+    """Handle the /help command."""
+    help_text = (
+        "*Taskatron Commands*\n\n"
+        "/taskatron <Name> <Time> <Unit (sec/mins/hr)>\n"
+        "- Starts a new task with the given name and duration.\n\n"
+        "/taskatron status\n"
+        "- Checks the status of the current task, including the remaining time.\n\n"
+        "/taskatron clear\n"
+        "- Clears the current task if one is active.\n\n"
+        "/help\n"
+        "- Displays this help message with information about all commands."
+    )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
+
 def main():
     """Main function to set up and run the bot."""
     application = ApplicationBuilder().token(API_TOKEN).build()
@@ -124,6 +144,7 @@ def main():
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("taskatron", manage_task))
+    application.add_handler(CommandHandler("help", show_help))
 
     # Run polling
     application.run_polling()
