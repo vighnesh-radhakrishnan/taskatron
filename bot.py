@@ -18,9 +18,9 @@ async def start(update: Update, context: CallbackContext) -> None:
     """Handle the /start command."""
     await update.message.reply_text("Hello! I am NotifyBuddy. How can I assist you today?")
 
-async def manage_session(update: Update, context: CallbackContext) -> None:
-    """Handle session commands."""
-    # Handle session status
+async def manage_task(update: Update, context: CallbackContext) -> None:
+    """Handle task commands."""
+    # Handle task status
     if len(context.args) == 1 and context.args[0].lower() == "status":
         if current_session["session_name"] and current_session["end_time"]:
             if datetime.now() < current_session["end_time"]:
@@ -39,83 +39,83 @@ async def manage_session(update: Update, context: CallbackContext) -> None:
                     time_left = f"{remaining_time} sec"
 
                 await update.message.reply_text(
-                    f"Session '{current_session['session_name']}' is active. Remaining time: {time_left}."
+                    f"Task '{current_session['session_name']}' is active. Remaining time: {time_left}."
                 )
             else:
-                expired_session = current_session["session_name"]
+                expired_task = current_session["session_name"]
                 current_session["session_name"] = None
                 current_session["end_time"] = None
-                await update.message.reply_text(f"Session '{expired_session}' expired.")
-                print(f"Session '{expired_session}' expired.")
+                await update.message.reply_text(f"Task '{expired_task}' expired.")
+                print(f"Task '{expired_task}' expired.")
             return
 
-    # Handle session clear
+    # Handle task clear
     if len(context.args) == 1 and context.args[0].lower() == "clear":
         if current_session["session_name"]:
-            cleared_session = current_session["session_name"]
+            cleared_task = current_session["session_name"]
             current_session["session_name"] = None
             current_session["end_time"] = None
             await update.message.reply_text(
-                f"Session '{cleared_session}' has been cleared."
+                f"Task '{cleared_task}' has been cleared."
             )
-            print(f"Session '{cleared_session}' cleared.")
+            print(f"Task '{cleared_task}' cleared.")
         else:
-            await update.message.reply_text("No active session to clear.")
+            await update.message.reply_text("No active task to clear.")
         return
 
-    # Handle starting a new session
+    # Handle starting a new task
     if len(context.args) != 3:
         await update.message.reply_text(
-            "Usage: /session <session_name> <session_time> <unit (sec/mins/hr)>\n"
-            "or use /session status to check the current session.\n"
-            "or use /session clear to clear the session."
+            "Usage: /taskatron <task_name> <task_time> <unit (sec/mins/hr)>\n"
+            "or use /taskatron status to check the current task.\n"
+            "or use /taskatron clear to clear the task."
         )
         return
 
     try:
-        session_name = context.args[0]
-        session_time = int(context.args[1])
+        task_name = context.args[0]
+        task_time = int(context.args[1])
         time_unit = context.args[2].lower()
 
         # Convert time to seconds based on the unit
         if time_unit == "sec":
-            session_duration = session_time
+            task_duration = task_time
         elif time_unit == "mins":
-            session_duration = session_time * 60
+            task_duration = task_time * 60
         elif time_unit == "hr":
-            session_duration = session_time * 3600
+            task_duration = task_time * 3600
         else:
             await update.message.reply_text("Invalid time unit. Use 'sec', 'mins', or 'hr'.")
             return
 
         if current_session["session_name"] is None or datetime.now() > current_session["end_time"]:
-            current_session["session_name"] = session_name
-            current_session["end_time"] = datetime.now() + timedelta(seconds=session_duration)
+            current_session["session_name"] = task_name
+            current_session["end_time"] = datetime.now() + timedelta(seconds=task_duration)
 
             await update.message.reply_text(
-                f"Session '{session_name}' started for {session_time} {time_unit}."
+                f"Task '{task_name}' started for {task_time} {time_unit}."
             )
 
-            # Wait for session expiry
-            asyncio.create_task(session_timer(session_name, session_duration, update))
+            # Wait for task expiry
+            asyncio.create_task(task_timer(task_name, task_duration, update))
 
         else:
             await update.message.reply_text(
-                f"Another session '{current_session['session_name']}' is already running. Use /session status to check."
+                f"Another task '{current_session['session_name']}' is already running. Use /taskatron status to check."
             )
 
     except ValueError:
-        await update.message.reply_text("Invalid session time. Please use a number for time.")
+        await update.message.reply_text("Invalid task time. Please use a number for time.")
 
-async def session_timer(session_name: str, session_time: int, update: Update):
-    """Handles the session timeout in the background."""
-    await asyncio.sleep(session_time)  # Wait until the session time expires
-    # Expire session only if it's the current session
-    if current_session["session_name"] == session_name:
-        print(f"Session '{session_name}' expired.")
+async def task_timer(task_name: str, task_time: int, update: Update):
+    """Handles the task timeout in the background."""
+    await asyncio.sleep(task_time)  # Wait until the task time expires
+    # Expire task only if it's the current task
+    if current_session["session_name"] == task_name:
+        print(f"Task '{task_name}' expired.")
         current_session["session_name"] = None
         current_session["end_time"] = None
-        await update.message.reply_text(f"Session '{session_name}' has expired.")
+        await update.message.reply_text(f"Task '{task_name}' has expired.")
 
 def main():
     """Main function to set up and run the bot."""
@@ -123,7 +123,7 @@ def main():
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("session", manage_session))
+    application.add_handler(CommandHandler("taskatron", manage_task))
 
     # Run polling
     application.run_polling()
