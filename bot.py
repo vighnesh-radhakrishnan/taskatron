@@ -25,8 +25,21 @@ async def manage_session(update: Update, context: CallbackContext) -> None:
         if current_session["session_name"] and current_session["end_time"]:
             if datetime.now() < current_session["end_time"]:
                 remaining_time = int((current_session["end_time"] - datetime.now()).total_seconds())
+
+                if remaining_time > 3600:
+                    hours = remaining_time // 3600
+                    minutes = (remaining_time % 3600) // 60
+                    seconds = remaining_time % 60
+                    time_left = f"{hours} hr {minutes} min {seconds} sec"
+                elif remaining_time > 60:
+                    minutes = remaining_time // 60
+                    seconds = remaining_time % 60
+                    time_left = f"{minutes} min {seconds} sec"
+                else:
+                    time_left = f"{remaining_time} sec"
+
                 await update.message.reply_text(
-                    f"Session '{current_session['session_name']}' is active. Remaining time: {remaining_time} seconds."
+                    f"Session '{current_session['session_name']}' is active. Remaining time: {time_left}."
                 )
             else:
                 expired_session = current_session["session_name"]
