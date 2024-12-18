@@ -2,7 +2,7 @@ import os
 import asyncio
 from datetime import datetime, timedelta
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext, MessageHandler, ConversationHandler, filters
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,20 +14,24 @@ current_session = {
     "end_time": None
 }
 
+# List to manage multiple reminders
 reminders = []
+
+# States for the reminder conversation
+REMINDER_DATE, REMINDER_LABEL = range(2)
+
 
 async def start(update: Update, context: CallbackContext) -> None:
     """Handle the /start command."""
     await update.message.reply_text("Hello! I am NotifyBuddy. How can I assist you today?")
 
+
 async def manage_task(update: Update, context: CallbackContext) -> None:
     """Handle task commands."""
-    # Handle task status
     if len(context.args) == 1 and context.args[0].lower() == "status":
         if current_session["session_name"] and current_session["end_time"]:
             if datetime.now() < current_session["end_time"]:
                 remaining_time = int((current_session["end_time"] - datetime.now()).total_seconds())
-
                 if remaining_time > 3600:
                     hours = remaining_time // 3600
                     minutes = (remaining_time % 3600) // 60
@@ -50,13 +54,7 @@ async def manage_task(update: Update, context: CallbackContext) -> None:
                 await update.message.reply_text(f"Task '{expired_task}' expired.")
                 print(f"Task '{expired_task}' expired.")
             return
-        else:
-            await update.message.reply_text(
-                "No active task. Use /taskatron <task_name> <task_time> <unit (sec/mins/hr)> to start a new task."
-            )
-            return
 
-    # Handle task clear
     if len(context.args) == 1 and context.args[0].lower() == "clear":
         if current_session["session_name"]:
             cleared_task = current_session["session_name"]
@@ -70,7 +68,6 @@ async def manage_task(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text("No active task to clear.")
         return
 
-    # Handle starting a new task
     if len(context.args) != 3:
         await update.message.reply_text(
             "Usage: /taskatron <task_name> <task_time> <unit (sec/mins/hr)>\n"
@@ -84,7 +81,6 @@ async def manage_task(update: Update, context: CallbackContext) -> None:
         task_time = int(context.args[1])
         time_unit = context.args[2].lower()
 
-        # Convert time to seconds based on the unit
         if time_unit == "sec":
             task_duration = task_time
         elif time_unit == "mins":
@@ -98,84 +94,71 @@ async def manage_task(update: Update, context: CallbackContext) -> None:
         if current_session["session_name"] is None or datetime.now() > current_session["end_time"]:
             current_session["session_name"] = task_name
             current_session["end_time"] = datetime.now() + timedelta(seconds=task_duration)
-
             await update.message.reply_text(
                 f"Task '{task_name}' started for {task_time} {time_unit}."
             )
 
-            # Wait for task expiry
             asyncio.create_task(task_timer(task_name, task_duration, update))
 
         else:
             await update.message.reply_text(
                 f"Another task '{current_session['session_name']}' is already running. Use /taskatron status to check."
             )
-
     except ValueError:
         await update.message.reply_text("Invalid task time. Please use a number for time.")
 
+
 async def task_timer(task_name: str, task_time: int, update: Update):
     """Handles the task timeout in the background."""
-    await asyncio.sleep(task_time)  # Wait until the task time expires
-    # Expire task only if it's the current task
+    await asyncio.sleep(task_time)
     if current_session["session_name"] == task_name:
         print(f"Task '{task_name}' expired.")
         current_session["session_name"] = None
         current_session["end_time"] = None
         await update.message.reply_text(f"Task '{task_name}' has expired.")
 
-async def show_help(update: Update, context: CallbackContext) -> None:
-    """Handle the /help command."""
-    help_text = (
-        "*Taskatron Commands*\n\n"
-        "/taskatron <Name> <Time> <Unit (sec/mins/hr)>\n"
-        "- Starts a new task with the given name and duration.\n\n"
-        "/taskatron status\n"
-        "- Checks the status of the current task, including the remaining time.\n\n"
-        "/taskatron clear\n"
-        "- Clears the current task if one is active.\n\n"
-        "/reminder <date in dd/mm/yy> <time in HH:MM>\n"
-        "- Sets a reminder for a specific date and time."
-    )
-    await update.message.reply_text(help_text, parse_mode="Markdown")
 
-async def reminder(update: Update, context: CallbackContext) -> None:
-    """Handle the /reminder command."""
+async def reminder_start(update: Update, context: CallbackContext) -> int:
+    """Start the reminder setup."""
     if len(context.args) < 2:
         await update.message.reply_text(
             "Usage: /reminder <date in dd/mm/yy> <time in HH:MM>\n"
             "Example: /reminder 25/12/24 14:30"
         )
-        return
+        return ConversationHandler.END
 
     try:
-        # Parse the date and time
         date_str = context.args[0]
         time_str = context.args[1]
         reminder_time = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%y %H:%M")
 
-        # Check if the reminder time is in the future
         if reminder_time <= datetime.now():
             await update.message.reply_text("The specified time must be in the future.")
-            return
+            return ConversationHandler.END
 
-        # Ask for a reminder label
+        context.user_data["reminder_time"] = reminder_time
         await update.message.reply_text("What should I remind you about?")
-        label_message = await context.bot.wait_for_message(chat_id=update.effective_chat.id, timeout=60)
-
-        if label_message:
-            reminder_label = label_message.text
-            await update.message.reply_text(
-                f"Reminder set for {reminder_time.strftime('%d/%m/%Y %H:%M')} with label: '{reminder_label}'."
-            )
-            # Schedule the reminder
-            asyncio.create_task(schedule_reminder(reminder_time, reminder_label, update))
-        else:
-            await update.message.reply_text("Reminder setup timed out. Please try again.")
+        return REMINDER_LABEL
     except ValueError:
         await update.message.reply_text(
             "Invalid date or time format. Use dd/mm/yy for the date and HH:MM (24-hour format) for the time."
         )
+        return ConversationHandler.END
+
+
+async def reminder_label(update: Update, context: CallbackContext) -> int:
+    """Handle the user input for reminder label."""
+    reminder_time = context.user_data.get("reminder_time")
+    reminder_label = update.message.text
+
+    reminders.append({"time": reminder_time, "label": reminder_label})
+    await update.message.reply_text(
+        f"Reminder set for {reminder_time.strftime('%d/%m/%Y %H:%M')} with label: '{reminder_label}'."
+    )
+
+    asyncio.create_task(schedule_reminder(reminder_time, reminder_label, update))
+    return ConversationHandler.END
+
 
 async def schedule_reminder(reminder_time: datetime, label: str, update: Update):
     """Schedule a reminder and send a message when the time is reached."""
@@ -183,18 +166,40 @@ async def schedule_reminder(reminder_time: datetime, label: str, update: Update)
     await asyncio.sleep(delay)
     await update.message.reply_text(f"Reminder: {label}")
 
+
+async def cancel(update: Update, context: CallbackContext) -> int:
+    """Cancel the reminder conversation."""
+    await update.message.reply_text("Reminder setup canceled.")
+    return ConversationHandler.END
+
+async def show_help(update: Update, context: CallbackContext) -> None:
+    """Send a help message listing bot commands."""
+    await update.message.reply_text(
+        "/start - Start the bot\n"
+        "/taskatron - Manage session tasks (status or clear)\n"
+        "/reminder <date> <time> - Set a reminder (e.g., 25/12/24 14:30)\n"
+        "/cancel - Cancel the reminder setup\n"
+    )
+
 def main():
     """Main function to set up and run the bot."""
     application = ApplicationBuilder().token(API_TOKEN).build()
 
-    # Add handlers
+    reminder_conversation = ConversationHandler(
+        entry_points=[CommandHandler("reminder", reminder_start)],
+        states={
+            REMINDER_LABEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, reminder_label)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("taskatron", manage_task))
-    application.add_handler(CommandHandler("help", show_help))
-    application.add_handler(CommandHandler("reminder", reminder))
+    application.add_handler(CommandHandler("help", show_help))  # Now defined
+    application.add_handler(reminder_conversation)
 
-    # Run polling
     application.run_polling()
+
 
 if __name__ == "__main__":
     main()
