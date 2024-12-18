@@ -2,7 +2,7 @@ import os
 import asyncio
 from datetime import datetime, timedelta
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext, MessageHandler, filters
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,6 +13,8 @@ current_session = {
     "session_name": None,
     "end_time": None
 }
+
+reminders = []
 
 async def start(update: Update, context: CallbackContext) -> None:
     """Handle the /start command."""
@@ -132,10 +134,54 @@ async def show_help(update: Update, context: CallbackContext) -> None:
         "- Checks the status of the current task, including the remaining time.\n\n"
         "/taskatron clear\n"
         "- Clears the current task if one is active.\n\n"
-        "/help\n"
-        "- Displays this help message with information about all commands."
+        "/reminder <date in dd/mm/yy> <time in HH:MM>\n"
+        "- Sets a reminder for a specific date and time."
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
+
+async def reminder(update: Update, context: CallbackContext) -> None:
+    """Handle the /reminder command."""
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "Usage: /reminder <date in dd/mm/yy> <time in HH:MM>\n"
+            "Example: /reminder 25/12/24 14:30"
+        )
+        return
+
+    try:
+        # Parse the date and time
+        date_str = context.args[0]
+        time_str = context.args[1]
+        reminder_time = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%y %H:%M")
+
+        # Check if the reminder time is in the future
+        if reminder_time <= datetime.now():
+            await update.message.reply_text("The specified time must be in the future.")
+            return
+
+        # Ask for a reminder label
+        await update.message.reply_text("What should I remind you about?")
+        label_message = await context.bot.wait_for_message(chat_id=update.effective_chat.id, timeout=60)
+
+        if label_message:
+            reminder_label = label_message.text
+            await update.message.reply_text(
+                f"Reminder set for {reminder_time.strftime('%d/%m/%Y %H:%M')} with label: '{reminder_label}'."
+            )
+            # Schedule the reminder
+            asyncio.create_task(schedule_reminder(reminder_time, reminder_label, update))
+        else:
+            await update.message.reply_text("Reminder setup timed out. Please try again.")
+    except ValueError:
+        await update.message.reply_text(
+            "Invalid date or time format. Use dd/mm/yy for the date and HH:MM (24-hour format) for the time."
+        )
+
+async def schedule_reminder(reminder_time: datetime, label: str, update: Update):
+    """Schedule a reminder and send a message when the time is reached."""
+    delay = (reminder_time - datetime.now()).total_seconds()
+    await asyncio.sleep(delay)
+    await update.message.reply_text(f"Reminder: {label}")
 
 def main():
     """Main function to set up and run the bot."""
@@ -145,6 +191,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("taskatron", manage_task))
     application.add_handler(CommandHandler("help", show_help))
+    application.add_handler(CommandHandler("reminder", reminder))
 
     # Run polling
     application.run_polling()
