@@ -70,9 +70,9 @@ async def manage_task(update: Update, context: CallbackContext) -> None:
 
     if len(context.args) != 3:
         await update.message.reply_text(
-            "Usage: /taskatron <task_name> <task_time> <unit (sec/mins/hr)>\n"
-            "or use /taskatron status to check the current task.\n"
-            "or use /taskatron clear to clear the task."
+            "Usage: /session <task_name> <task_time> <unit (sec/mins/hr)>\n"
+            "or use /session status to check the current task.\n"
+            "or use /session clear to clear the task."
         )
         return
 
@@ -102,7 +102,7 @@ async def manage_task(update: Update, context: CallbackContext) -> None:
 
         else:
             await update.message.reply_text(
-                f"Another task '{current_session['session_name']}' is already running. Use /taskatron status to check."
+                f"Another task '{current_session['session_name']}' is already running. Use /session status to check."
             )
     except ValueError:
         await update.message.reply_text("Invalid task time. Please use a number for time.")
@@ -116,6 +116,7 @@ async def task_timer(task_name: str, task_time: int, update: Update):
         current_session["session_name"] = None
         current_session["end_time"] = None
         await update.message.reply_text(f"Task '{task_name}' has expired.")
+
 
 
 async def reminder_start(update: Update, context: CallbackContext) -> int:
@@ -156,27 +157,44 @@ async def reminder_label(update: Update, context: CallbackContext) -> int:
         f"Reminder set for {reminder_time.strftime('%d/%m/%Y %H:%M')} with label: '{reminder_label}'."
     )
 
-    asyncio.create_task(schedule_reminder(reminder_time, reminder_label, update))
+    # Pass bot and chat_id to the schedule_reminder function
+    asyncio.create_task(schedule_reminder(reminder_time, reminder_label, context.bot, update.effective_chat.id))
     return ConversationHandler.END
 
 
-async def schedule_reminder(reminder_time: datetime, label: str, update: Update):
+async def schedule_reminder(reminder_time: datetime, label: str, bot, chat_id: int):
     """Schedule a reminder and send a message when the time is reached."""
     delay = (reminder_time - datetime.now()).total_seconds()
     await asyncio.sleep(delay)
-    await update.message.reply_text(f"Reminder: {label}")
+    # Check if the reminder still exists
+    reminder = next((r for r in reminders if r["time"] == reminder_time and r["label"] == label), None)
+    if reminder:
+        # Send the reminder message
+        await bot.send_message(chat_id=chat_id, text=f"Reminder: {label}")
+        reminders.remove(reminder)   # Remove reminder after sending
 
 
-async def cancel(update: Update, context: CallbackContext) -> int:
-    """Cancel the reminder conversation."""
-    await update.message.reply_text("Reminder setup canceled.")
-    return ConversationHandler.END
+async def cancel_reminder(update: Update, context: CallbackContext) -> None:
+    """Cancel a specific reminder by label."""
+    if len(context.args) == 0:
+        await update.message.reply_text("Usage: /cancel_reminder <reminder_name>")
+        return
+
+    reminder_label = " ".join(context.args)
+    reminder = next((r for r in reminders if r["label"] == reminder_label), None)
+
+    if reminder:
+        reminders.remove(reminder)  # Remove the reminder from the list
+        await update.message.reply_text(f"Reminder '{reminder_label}' has been canceled.")
+    else:
+        await update.message.reply_text(f"No reminder found with the label '{reminder_label}'.")
+
 
 async def show_help(update: Update, context: CallbackContext) -> None:
     """Send a help message listing bot commands."""
     await update.message.reply_text(
         "/start - Start the bot\n"
-        "/taskatron - Manage session tasks (status or clear)\n"
+        "/session - Manage session tasks (status or clear)\n"
         "/reminder <date> <time> - Set a reminder (e.g., 25/12/24 14:30)\n"
         "/cancel - Cancel the reminder setup\n"
     )
@@ -185,18 +203,21 @@ def main():
     """Main function to set up and run the bot."""
     application = ApplicationBuilder().token(API_TOKEN).build()
 
-    reminder_conversation = ConversationHandler(
+    reminder_handler = ConversationHandler(
         entry_points=[CommandHandler("reminder", reminder_start)],
         states={
-            REMINDER_LABEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, reminder_label)],
+            REMINDER_LABEL: [MessageHandler(filters.TEXT, reminder_label)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel_reminder)],
     )
+    application.add_handler(reminder_handler)
+
+    # Command to cancel specific reminders
+    application.add_handler(CommandHandler("cancel_reminder", cancel_reminder))
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("taskatron", manage_task))
+    application.add_handler(CommandHandler("session", manage_task))
     application.add_handler(CommandHandler("help", show_help))  # Now defined
-    application.add_handler(reminder_conversation)
 
     application.run_polling()
 
