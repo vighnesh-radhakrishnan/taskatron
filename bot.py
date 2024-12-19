@@ -173,6 +173,18 @@ async def schedule_reminder(reminder_time: datetime, label: str, bot, chat_id: i
         await bot.send_message(chat_id=chat_id, text=f"Reminder: {label}")
         reminders.remove(reminder)   # Remove reminder after sending
 
+async def reminder_status(update: Update, context: CallbackContext) -> None:
+    """Show the current active reminders and their designated times."""
+    if not reminders:
+        await update.message.reply_text("No active reminders.")
+        return
+
+    status_message = "Here are your current reminders:\n"
+    for reminder in reminders:
+        time_str = reminder["time"].strftime("%d/%m/%Y %H:%M")
+        status_message += f"- {reminder['label']} at {time_str}\n"
+
+    await update.message.reply_text(status_message)
 
 async def cancel_reminder(update: Update, context: CallbackContext) -> None:
     """Cancel a specific reminder by label."""
@@ -212,12 +224,14 @@ def main():
     )
     application.add_handler(reminder_handler)
 
-    # Command to cancel specific reminders
+    
     application.add_handler(CommandHandler("cancel_reminder", cancel_reminder))
+
+    application.add_handler(CommandHandler("reminder_status", reminder_status))
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("session", manage_task))
-    application.add_handler(CommandHandler("help", show_help))  # Now defined
+    application.add_handler(CommandHandler("help", show_help))
 
     application.run_polling()
 
