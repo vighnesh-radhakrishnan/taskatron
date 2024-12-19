@@ -186,10 +186,10 @@ async def reminder_status(update: Update, context: CallbackContext) -> None:
 
     await update.message.reply_text(status_message)
 
-async def cancel_reminder(update: Update, context: CallbackContext) -> None:
+async def reminder_cancel(update: Update, context: CallbackContext) -> None:
     """Cancel a specific reminder by label."""
     if len(context.args) == 0:
-        await update.message.reply_text("Usage: /cancel_reminder <reminder_name>")
+        await update.message.reply_text("Usage: /reminder_cancel <reminder_name>")
         return
 
     reminder_label = " ".join(context.args)
@@ -205,11 +205,19 @@ async def cancel_reminder(update: Update, context: CallbackContext) -> None:
 async def show_help(update: Update, context: CallbackContext) -> None:
     """Send a help message listing bot commands."""
     await update.message.reply_text(
-        "/start - Start the bot\n"
-        "/session - Manage session tasks (status or clear)\n"
-        "/reminder <date> <time> - Set a reminder (e.g., 25/12/24 14:30)\n"
-        "/cancel - Cancel the reminder setup\n"
+        "Here are the available commands:\n\n"
+        "/start - Start the bot\n\n"
+        "/session - Manage session tasks:\n"
+        "  ├ /session <name> <time> <unit> - Start a session\n"
+        "  ├ /session status - View the current session tasks\n"
+        "  └ /session clear - Clear all session tasks\n\n"
+        "/reminder - Manage reminders:\n"
+        "  ├ /reminder <date> <time> - Set a reminder\n"
+        "  ├ /reminder_status - View current reminders\n"
+        "  └ /reminder_cancel <name> - Cancel a reminder by name\n\n"
+        "/cancel - Cancel the current operation\n"
     )
+
 
 def main():
     """Main function to set up and run the bot."""
@@ -220,12 +228,12 @@ def main():
         states={
             REMINDER_LABEL: [MessageHandler(filters.TEXT, reminder_label)],
         },
-        fallbacks=[CommandHandler("cancel", cancel_reminder)],
+        fallbacks=[CommandHandler("cancel", reminder_cancel)],
     )
     application.add_handler(reminder_handler)
 
     
-    application.add_handler(CommandHandler("cancel_reminder", cancel_reminder))
+    application.add_handler(CommandHandler("reminder_cancel", reminder_cancel))
 
     application.add_handler(CommandHandler("reminder_status", reminder_status))
 
