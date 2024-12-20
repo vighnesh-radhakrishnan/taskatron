@@ -18,7 +18,7 @@ current_session = {
 reminders = []
 
 # States for the reminder conversation
-REMINDER_DATE, REMINDER_LABEL = range(2)
+REMINDER_DATE, REMINDER_LABEL, EDIT_REMINDER = range(3)
 
 
 async def start(update: Update, context: CallbackContext) -> None:
@@ -218,6 +218,65 @@ async def show_help(update: Update, context: CallbackContext) -> None:
         "/cancel - Cancel the current operation\n"
     )
 
+async def reminder_edit(update: Update, context: CallbackContext) -> int:
+    """Start the process to edit a reminder."""
+    if len(context.args) == 0:
+        await update.message.reply_text("Usage: /reminder_edit <reminder_name>")
+        return ConversationHandler.END
+
+    reminder_label = " ".join(context.args)
+    reminder = next((r for r in reminders if r["label"] == reminder_label), None)
+
+    if reminder:
+        context.user_data["editing_reminder"] = reminder
+        await update.message.reply_text(
+            "Enter the new details for the reminder in the format: <date in dd/mm/yy> <time in HH:MM> <new_label>."
+        )
+        return EDIT_REMINDER
+    else:
+        await update.message.reply_text(f"No reminder found with the label '{reminder_label}'.")
+        return ConversationHandler.END
+
+
+async def edit_reminder(update: Update, context: CallbackContext) -> int:
+    """Handle the user input for editing a reminder."""
+    reminder = context.user_data.get("editing_reminder")
+    if not reminder:
+        await update.message.reply_text("No reminder to edit.")
+        return ConversationHandler.END
+
+    try:
+        new_details = update.message.text.split()
+        if len(new_details) < 3:
+            await update.message.reply_text(
+                "Invalid format. Use: <date in dd/mm/yy> <time in HH:MM> <new_label>."
+            )
+            return EDIT_REMINDER
+
+        new_date = new_details[0]
+        new_time = new_details[1]
+        new_label = " ".join(new_details[2:])
+
+        new_reminder_time = datetime.strptime(f"{new_date} {new_time}", "%d/%m/%y %H:%M")
+
+        if new_reminder_time <= datetime.now():
+            await update.message.reply_text("The specified time must be in the future.")
+            return EDIT_REMINDER
+
+        # Update the reminder
+        reminder["time"] = new_reminder_time
+        reminder["label"] = new_label
+
+        await update.message.reply_text(
+            f"Reminder updated to: '{new_label}' at {new_reminder_time.strftime('%d/%m/%Y %H:%M')}."
+        )
+        return ConversationHandler.END
+    except ValueError:
+        await update.message.reply_text(
+            "Invalid date or time format. Use dd/mm/yy for the date and HH:MM (24-hour format) for the time."
+        )
+        return EDIT_REMINDER
+
 
 def main():
     """Main function to set up and run the bot."""
@@ -232,10 +291,22 @@ def main():
     )
     application.add_handler(reminder_handler)
 
+
+
     
     application.add_handler(CommandHandler("reminder_cancel", reminder_cancel))
 
     application.add_handler(CommandHandler("reminder_status", reminder_status))
+
+    edit_handler = ConversationHandler(
+        entry_points=[CommandHandler("reminder_edit", reminder_edit)],
+        states={
+            EDIT_REMINDER: [MessageHandler(filters.TEXT, edit_reminder)],
+        },
+        fallbacks=[CommandHandler("cancel", reminder_cancel)],
+    )
+    application.add_handler(reminder_handler)
+    application.add_handler(edit_handler)
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("session", manage_task))
