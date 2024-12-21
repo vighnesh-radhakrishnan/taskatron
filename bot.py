@@ -210,11 +210,13 @@ async def show_help(update: Update, context: CallbackContext) -> None:
         "/session - Manage session tasks:\n"
         "  ├ /session <name> <time> <unit> - Start a session\n"
         "  ├ /session status - View the current session tasks\n"
+        "  ├ /session_edit <reminder_name> - Edit session\n"
         "  └ /session clear - Clear all session tasks\n\n"
         "/reminder - Manage reminders:\n"
         "  ├ /reminder <date> <time> - Set a reminder\n"
         "  ├ /reminder_status - View current reminders\n"
-        "  └ /reminder_cancel <name> - Cancel a reminder by name\n\n"
+        "  ├ /reminder_cancel <name> - Cancel a reminder by name\n\n"
+        "  └/reminder_edit <reminder_name> - Edit Reminder"
         "/cancel - Cancel the current operation\n"
     )
 
