@@ -117,6 +117,45 @@ async def task_timer(task_name: str, task_time: int, update: Update):
         current_session["end_time"] = None
         await update.message.reply_text(f"Task '{task_name}' has expired.")
 
+async def session_edit(update: Update, context: CallbackContext) -> None:
+    """Edit the current session task."""
+    if not current_session["session_name"]:
+        await update.message.reply_text("No active session to edit.")
+        return
+
+    if len(context.args) != 3:
+        await update.message.reply_text(
+            "Usage: /session_edit <new_name> <new_time> <unit (sec/mins/hr)>"
+        )
+        return
+
+    try:
+        new_name = context.args[0]
+        new_time = int(context.args[1])
+        time_unit = context.args[2].lower()
+
+        if time_unit == "sec":
+            task_duration = new_time
+        elif time_unit == "mins":
+            task_duration = new_time * 60
+        elif time_unit == "hr":
+            task_duration = new_time * 3600
+        else:
+            await update.message.reply_text("Invalid time unit. Use 'sec', 'mins', or 'hr'.")
+            return
+
+        # Update session
+        current_session["session_name"] = new_name
+        current_session["end_time"] = datetime.now() + timedelta(seconds=task_duration)
+
+        await update.message.reply_text(
+            f"Session updated: '{new_name}' for {new_time} {time_unit}."
+        )
+
+        asyncio.create_task(task_timer(new_name, task_duration, update))
+
+    except ValueError:
+        await update.message.reply_text("Invalid task time. Please use a number for time.")
 
 
 async def reminder_start(update: Update, context: CallbackContext) -> int:
@@ -313,6 +352,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("session", manage_task))
     application.add_handler(CommandHandler("help", show_help))
+    application.add_handler(CommandHandler("session_edit", session_edit))
 
     application.run_polling()
 
