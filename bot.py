@@ -256,7 +256,6 @@ async def show_help(update: Update, context: CallbackContext) -> None:
         "  ├ /reminder_status - View current reminders\n"
         "  ├ /reminder_cancel <name> - Cancel a reminder by name\n\n"
         "  └/reminder_edit <reminder_name> - Edit Reminder"
-        "/cancel - Cancel the current operation\n"
     )
 
 async def reminder_edit(update: Update, context: CallbackContext) -> int:
