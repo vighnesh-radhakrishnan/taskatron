@@ -23,7 +23,7 @@ REMINDER_DATE, REMINDER_LABEL, EDIT_REMINDER = range(3)
 
 async def start(update: Update, context: CallbackContext) -> None:
     """Handle the /start command."""
-    await update.message.reply_text("Hello! I am NotifyBuddy. How can I assist you today?")
+    await update.message.reply_text("Hello! I am Taskatron. How can I assist you today?")
 
 
 async def manage_task(update: Update, context: CallbackContext) -> None:
